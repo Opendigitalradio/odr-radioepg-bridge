@@ -250,7 +250,7 @@ class Generator:
    
                         # create a sensible contentname
                         logger.debug('Media content type is %s', media.content)
-                        objectname = f'{len(objects):x}'
+                        objectname = f'{len(objects)+1:x}'
                         logger.debug('creating MOT image %s from url: %s', objectname, media.url)
                         
                         # create MOT Object
@@ -283,7 +283,7 @@ class Generator:
                            pi_url = 'http://%s/radiodns/spi/3.1/dab/%03x/%04x/%04x/%01x/%s' % (domain, ((bearer.sid >> 4 & 0xf00) + bearer.ecc), bearer.eid, bearer.sid, bearer.scids, day.strftime("%Y%m%d_PI.xml"))
                            try:
                                 day = now + timedelta(days=i)
-                                objectname = '%s_%02x.%04x.%04x.%01x_PI.xml' % (day.strftime("%Y%m%d"), bearer.ecc, bearer.eid, bearer.sid, bearer.scids)
+                                objectname = f'{len(objects)+1:x}'
                                 # Uncomment this next line if you want to use legacy objectnames
                                 # objectname = 'w%sd%04xc0.EHA' % (day.strftime("%Y%m%d"), bearer.sid)
                                 logger.debug('making request for PI file to: %s to write out as: %s', pi_url, objectname)
@@ -342,7 +342,7 @@ class Generator:
                                    logger.exception('PI file at: %s is malformed', pi_url)
                      
         # prepare the SI file
-        objectname = '%s_%02x.%04x_SI.xml' % (now.strftime("%Y%m%d"),ecc,eid)
+        objectname = f'{0:x}'
         # Uncomment this next line if you want to use legacy objectnames
         # objectname = 'e%02x%04xw%s.EIA' % (ecc, eid, now.strftime("%Y%m%d"))
         service_info = ServiceInfo()
