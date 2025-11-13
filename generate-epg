@@ -112,6 +112,20 @@ def encode_image(url, width, height):
     if image.format != 'PNG':
         logger.debug('WARN: image format is not PNG. Saving it as PNG.')
         dosave = True
+    if image.mode == 'RGBA':
+        logger.debug('WARN: image format is RGBA. Converting to RGB.')
+        image = image.convert("RGB")
+        dosave = True
+    elif (image.mode == 'P') and ((image.palette == None) or (image.palette.mode != "RGB")):
+        logger.debug('WARN: invalid image palette mode. Converting to RGB.')
+        image = image.convert("RGB")
+        dosave = True
+    elif (image.mode == 'P') or (image.palette == None) or (len(image.palette.palette) != 768) or (image.palette.mode != "RGB"):
+        dosave = True # save just to make sure it will be 8-bit depth PNG
+    elif image.mode != 'RGB':
+        logger.debug('WARN: image format is not RGB24 or P8. Converting to RGB.')
+        image = image.convert("RGB")
+        dosave = True
     if (image.width != width) or (image.height != height):
         logger.debug('WARN: image dimensions are incorrect (width:%d, height:%d)', image.width, image.height)
         image = image.resize(size=[width, height], resample=Image.BICUBIC)
@@ -125,10 +139,10 @@ def encode_image(url, width, height):
         data = temp.read()
         temp.close()
         os.remove(tempname)
-        logger.debug('re-sized to width %d and height %d', width, height)
     if len(data) > 5000:
         logger.debug('WARN: image size is excessive (greater than 5kBytes)')
-        image = image.convert("P", palette=Image.ADAPTIVE)
+        if image.mode != 'P':
+            image = image.convert("P", palette=Image.ADAPTIVE)
         tf = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
         tempname = tf.name
         tf.close()
