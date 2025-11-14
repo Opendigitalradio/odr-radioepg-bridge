@@ -64,10 +64,22 @@ def parse_mux_pkt_size_addr(filename, args_packet_size, args_packet_address):
         else:
             mux_packet_bitrate = 24
     elif (args_packet_size in [24,48,72,96]) and (args_packet_address > 0) and (args_packet_address < 0x3FE):
+        if mux_numepgs == 0:
+            logger.debug('WARN: no SPI services found in mux config. Using packet size and address from command-line arguments.')
+        elif mux_numepgs == 1:
+            logger.debug('WARN: unable to get packet size and address from mux config. Using values from command-line arguments.')
+        else:
+            logger.debug('WARN: more than one SPI service found in mux config. Using packet size and address from command-line arguments.')
         mux_packet_size = args_packet_size
         mux_packet_address = args_packet_address
         mux_packet_bitrate = mux_packet_size // 3
     else:
+        if mux_numepgs == 0:
+            logger.debug('WARN: no SPI services found in mux config. No packet size and address in command-line arguments.')
+        elif mux_numepgs == 1:
+            logger.debug('WARN: unable to get packet size and address from mux config. No packet size and address in command-line arguments.')
+        else:
+            logger.debug('WARN: more than one SPI service found in mux config. No packet size and address in command-line arguments.')
         mux_packet_size = -1
         mux_packet_address = -1
         mux_packet_bitrate = -1
@@ -160,10 +172,11 @@ parser.add_argument('f',  nargs=1, help='multiplex configuration file')
 parser.add_argument('-o', dest='output', help='output bitstream file')
 parser.add_argument('-X', dest='debug', action='store_true', help='turn debug on')
 parser.add_argument('-d', dest='days', type=int, default=2, help='number of days ahead to encode schedule files')
-parser.add_argument('-p', dest='packet_size', type=int, default=96, help='Packet size in bytes')
-parser.add_argument('-a', dest='packet_address', type=int, default=1, help='Packet address')
+parser.add_argument('-p', dest='packet_size', type=int, default=-1, help='Packet size in bytes')
+parser.add_argument('-a', dest='packet_address', type=int, default=-1, help='Packet address')
 parser.add_argument('-D', dest='datagroup_output', action='store_true', help='output Datagroups instead of Packets')
 parser.add_argument('-c', dest='clientids', help='filename of CSV file of fqdn,ClientID key values')
+parser.add_argument('-1', dest='one_bearer_per_service', action='store_true', help='do not include bearers for other DAB EIds')
 args = parser.parse_args()
 
 if args.debug:
@@ -197,7 +210,7 @@ def calculate_scope(schedule): # this should probably be in the main codebase
 
 class Generator:
 
-    def __init__(self, days, output, packet_size, packet_address, packet_bitrate, datagroup_output, ecc, eid, label, shortlabel):
+    def __init__(self, days, output, packet_size, packet_address, packet_bitrate, datagroup_output, one_bearer_per_service, ecc, eid, label, shortlabel):
         self.days = days if days else 0
         self.output = output if output else 'output.dat'
         self.packet_size = packet_size
@@ -208,7 +221,7 @@ class Generator:
         self.eid = eid
         self.label = label
         self.shortlabel = shortlabel
-
+        self.one_bearer_per_service = one_bearer_per_service
 
         if self.datagroup_output:
             logger.debug('creating bitstream generator: days=%d, using datagroups', days)       
@@ -386,17 +399,14 @@ class Generator:
         logger.debug('Preparing the Ensemble SI file with %d services to write out as %s', len(all_services), objectname)
         for service in all_services:
     
-            # filter out non DAB/IP bearers
-            # service.bearers = filter(lambda x: isinstance(x, (DabBearer, IpBearer)), service.bearers)
-            # service_info.services.append(service)  
+            if self.one_bearer_per_service:
+                # find only the bearer for this multiplex
+                service.bearers = filter(lambda x: isinstance(x, DabBearer) and x.ecc == ecc and x.eid == eid, service.bearers)
+            else:
+                # filter out non DAB bearers
+                service.bearers = filter(lambda x: isinstance(x, DabBearer), service.bearers)
 
-            # filter out non DAB bearers
-            service.bearers = filter(lambda x: isinstance(x, DabBearer), service.bearers)
-
-            # find only the bearer for this multiplex
-            # service.bearers = filter(lambda x: isinstance(x, DabBearer) and x.ecc == ecc and x.eid == eid, service.bearers)
-
-            service_info.services.append(service)  
+            service_info.services.append(service)
 
         # add the SI file 
         ensemble_label = MediumName(label)
@@ -451,5 +461,7 @@ if (mux_packet_size < 0) or (mux_packet_address < 0):
 # get the services and applications that the mux config suggests and construct a new virtual SI file
 from odr.radiodns.resolver import resolve_epg, parse_mux_ensemble
 ecc, eid, label, shortlabel = parse_mux_ensemble(args.f[0])
-generator = Generator(days=args.days, output=args.output, packet_size=mux_packet_size, packet_address=mux_packet_address, packet_bitrate=mux_packet_bitrate, datagroup_output=args.datagroup_output,ecc=ecc,eid=eid,label=label,shortlabel=shortlabel)
+generator = Generator(days=args.days, output=args.output, packet_size=mux_packet_size, packet_address=mux_packet_address, 
+  packet_bitrate=mux_packet_bitrate, datagroup_output=args.datagroup_output,one_bearer_per_service=args.one_bearer_per_service,
+  ecc=ecc,eid=eid,label=label,shortlabel=shortlabel)
 resolved = resolve_epg(args.f[0], generator.generate_epg)
