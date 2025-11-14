@@ -32,7 +32,7 @@ from io import BytesIO
 from spi import DabBearer, IpBearer, Time, ServiceInfo, Multimedia, ShortName, MediumName, xml, binary, ShortDescription, LongDescription
 
 from mot import MotObject, ContentType, SortedHeaderInformation
-from mot.epg import EpgContentType, ScopeId, ScopeStart, ScopeEnd
+from mot.epg import EpgContentType, ScopeId, ScopeStart, ScopeEnd, UniqueBodyVersion
 
 from msc.datagroups import encode_directorymode
 from msc.packets import encode_packets
@@ -240,6 +240,7 @@ class Generator:
         logger.debug('responses: %s', responses)
         
         now = datetime.today()
+        nowutc32 = int(now.timestamp()) & 0x7FFFFFFF
 
         for response in responses:
             fqdn = response['fqdn']
@@ -304,6 +305,7 @@ class Generator:
                         
                         # create MOT Object
                         o = MotObject(objectname, encode_image(media.url, media.width, media.height), ContentType.IMAGE_PNG)
+                        o.add_parameter(UniqueBodyVersion(nowutc32))
                         objects.append(o)
 
                         # set the name
@@ -374,6 +376,7 @@ class Generator:
                                         programme_info.schedules[0] = schedule_info
 
                                         o = MotObject(objectname, binary.marshall(programme_info).tobytes(), EpgContentType.PROGRAMME_INFORMATION)
+                                        o.add_parameter(UniqueBodyVersion(nowutc32))
                                         o.add_parameter(ScopeId(bearer.ecc, bearer.eid, sid=bearer.sid, scids=bearer.scids)) 
                                         o.add_parameter(ScopeStart(scope_start))
                                         o.add_parameter(ScopeEnd(scope_end))
@@ -412,6 +415,7 @@ class Generator:
         ensemble_label = MediumName(label)
         ensemble_shortlabel = ShortName(shortlabel)
         o = MotObject(objectname, binary.marshall(service_info, ensemble=binary.Ensemble(ecc, eid, names=[ensemble_label,ensemble_shortlabel])).tobytes(), EpgContentType.SERVICE_INFORMATION)
+        o.add_parameter(UniqueBodyVersion(nowutc32))
         o.add_parameter(ScopeId(ecc, eid))
         objects.insert(0, o)
 
